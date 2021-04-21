@@ -45,7 +45,7 @@ typedef unsigned char uchar;
 
 extern "C"
 {
-#include "iob.h"
+#include "ioblib/iob.h"
 /* Include JPMLs music library for sounds - [OJM] */
 #include "jpml/jpml.h"
 #include "fatfs/ff.h"
@@ -200,6 +200,11 @@ const byte _pacVAnim[] = { 4,3,1,3 };
 
 /* ======================== */
 byte pacManLives = 3;
+
+short abs(int val) {
+    if (val < 0) return -val;
+    return val;
+}
 
 class Sprite
 {
@@ -680,6 +685,7 @@ jumpout:
     
     byte GetTile(int cx, int ty)
     {
+        if ((cx < 0 || cx > 27) && ty == 17) return 0;
         return pgm_read_byte(playMap + ty*28 + cx);
     }
         
@@ -949,11 +955,11 @@ jumpout:
 				case MDown:     y += 1; break;
 			}
 
-			//-- wrap x because of tunnels
-			while (x < 0)
-				x += 224;
-			while (x >= 224)
-				x -= 224;
+			//-- wrap x because of tunnels (offset by 16 to hide teleportation)
+			while (x < 0-16)
+				x += 224+16;
+			while (x >= 224+16)
+				x -= 224+16;
 
 			//-- update ghosts's internal variables
 			s->_x = x;
@@ -985,41 +991,42 @@ jumpout:
 		int rayY = y;
 
 
-			/* =========== CODE SNIPPET 1: user control ========== */
-			/**
-			 * Implement pac man control using the IO Board.
-			 * Have a look at how ghosts choose their direction in the
-			 * GhostAI() method. When can direction be changed and how
-			 * is it done?
-			 */
-			//-- pacman is controlled by the IO board
-            // Updated for LaFortuna - [OJM]
-            if(get_switch_press(_BV(SWE))) pacman->userIntendedDir = MRight;
-            if(get_switch_press(_BV(SWW))) pacman->userIntendedDir = MLeft;
-            if(get_switch_press(_BV(SWN))) pacman->userIntendedDir = MUp;
-            if(get_switch_press(_BV(SWS))) pacman->userIntendedDir = MDown;
+        /* =========== CODE SNIPPET 1: user control ========== */
+        /**
+         * Implement pac man control using the IO Board.
+         * Have a look at how ghosts choose their direction in the
+         * GhostAI() method. When can direction be changed and how
+         * is it done?
+         */
+        //-- pacman is controlled by the IO board
+        // Updated for LaFortuna - [OJM]
+        if(get_switch_press(_BV(SWE))) pacman->userIntendedDir = MRight;
+        if(get_switch_press(_BV(SWW))) pacman->userIntendedDir = MLeft;
+        if(get_switch_press(_BV(SWN))) pacman->userIntendedDir = MUp;
+        if(get_switch_press(_BV(SWS))) pacman->userIntendedDir = MDown;
 
-			if ((x & 0x7) == 0 && (y & 0x7) == 0) {   // cell aligned
-				pacman->dir = pacman->userIntendedDir;
-				pacman->lastCellAlignedX = x;
-				pacman->lastCellAlignedY = y;
-			}
-			/* ====================================== */
+
+        if ((x & 0x7) == 0 && (y & 0x7) == 0) {   // cell aligned
+            pacman->dir = pacman->userIntendedDir;
+            pacman->lastCellAlignedX = x;
+            pacman->lastCellAlignedY = y;
+        }
+        /* ====================================== */
 
 		//-- resolve direction into new coordinates. Set 'ray tracing' variables for collision detection
 		switch (pacman->dir) {
-			case MLeft:     x -= 1; rayX -=3; break;
-			case MRight:    x += 1; rayX += 3; break;
-			case MUp:       y -= 1; rayY -=3; break;
-			case MDown:     y += 1; rayY += 3; break;
+			case MLeft:     x -= 1; rayX -=5; break;
+			case MRight:    x += 1; rayX += 4; break;
+			case MUp:       y -= 1; rayY -=5; break;
+			case MDown:     y += 1; rayY += 4; break;
 		}
 
-		//-- wrap x because of tunnels
-		while (x < 0) {
-			x += 224;
+		//-- wrap x because of tunnels (offset by 2 tiles to hide teleport)
+		while (x < 0-16) {
+			x += 224+16;
         }
-		while (x >= 224) {
-			x -= 224;
+		while (x >= 224+16) {
+			x -= 224+16;
         }
 
 		/* =========== CODE SNIPPET 2: wall collisions ========== */
@@ -1033,6 +1040,8 @@ jumpout:
 		//-- make sure pac man can't move through walls
 		//-- get the future tile, given the current direction is should be heading
 		byte tile = GetTile((rayX + 4) >> 3,(rayY + 4) >> 3);
+        _score = (rayY + 4) >> 3;
+        Score(0);
 		//-- make sure not colliding with walls:
 		if (!(tile == 0 || tile == DOT || tile == PILL || tile == PENGATE )) {
 			//-- this would be a collision, return x and y back to the last know cell aligned state

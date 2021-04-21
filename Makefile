@@ -1,4 +1,4 @@
-SHELL=C:/Windows/System32/cmd.exe
+SHELL=/usr/bin/fish
 # Universal Makefile   Version: 23.02.2016
 #
 # Appears to work under Linux, OSX, and Cygwin/Windows.
