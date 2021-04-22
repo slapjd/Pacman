@@ -198,6 +198,8 @@ const byte _pacLeftAnim[] = { 5,6,5,4 };
 const byte _pacRightAnim[] = { 2,0,2,4 };
 const byte _pacVAnim[] = { 4,3,1,3 };
 
+volatile long speedTimer = 0;
+
 /* ======================== */
 byte pacManLives = 3;
 
@@ -880,6 +882,8 @@ jumpout:
         return 75;
     }
     
+    long oldSpeedTimer = 0;
+
     void MoveAll()
     {
         UpdateTimers();
@@ -894,6 +898,7 @@ jumpout:
                 {
                     case ReadyState:
                         _state = PlayState;
+                        oldSpeedTimer = speedTimer;
                         _dirty[20*4 + 1] |= 0x1F;  // Clear 'READY!'
                         _dirty[20*4 + 2] |= 0x80;
                         break;
@@ -914,10 +919,37 @@ jumpout:
                     return;
             }
         }
+
+        UpdateLogicForDrawing();
         
-        GhostAI();
-        PacmanControl();
+        long deltaSpeedTimer = speedTimer - oldSpeedTimer;
+        oldSpeedTimer += deltaSpeedTimer; //done to avoid accessing volatile many times
+
+        for (int i = 0; i < deltaSpeedTimer; i++) {
+            GhostAI();
+            PacmanControl();
+        }
         
+    }
+
+    /**
+     * Minor changes that should be done every frame, not tied to the
+     * 80hz timer
+     */
+    void UpdateLogicForDrawing(){
+        Sprite* pacman = _sprites + PACMAN;
+        pacman->lastx = pacman->_x;
+		pacman->lasty = pacman->_y;
+
+        if (GetSpeed(pacman) != 0) pacman->phase++;
+
+        for (byte i = 0; i < 4; i++) {
+			Sprite* s = _sprites + i;
+
+            s->lastx = s->_x;
+			s->lasty = s->_y;
+			s->phase++;
+        }
     }
 
     /**
@@ -936,10 +968,6 @@ jumpout:
 			if (s->speed < 100)
 				continue;
 			s->speed -= 100;
-
-			s->lastx = s->_x;
-			s->lasty = s->_y;
-			s->phase++;
 
 			int x = s->_x;
 			int y = s->_y;
@@ -998,14 +1026,10 @@ jumpout:
     	Sprite* pacman = _sprites + PACMAN;
 
 		//  Calculate speed
-    	/*pacman->speed += GetSpeed(pacman);
-		if (pacman->speed < 50)
+    	pacman->speed += GetSpeed(pacman);
+		if (pacman->speed < 100)
 			return;
-		pacman->speed -= 10;*/
-
-		pacman->lastx = pacman->_x;
-		pacman->lasty = pacman->_y;
-		pacman->phase++;
+		pacman->speed -= 100;
 
 		int x = pacman->_x;
 		int y = pacman->_y;
@@ -1311,8 +1335,8 @@ void scanswitch_init( void ) {
     TCCR0B = _BV(CS02)
     | _BV(CS00);	 /* F_CPU / 1024 */ 
 
-    /* 10ms for button presses */
-    OCR0A = (uint8_t)(F_CPU / (1024 * 100) - 1); // Count to 78 ==> 10ms
+    /* 84Hz for button presses (and i hijacked it for speed calculations)*/
+    OCR0A = (uint8_t)(F_CPU / (1024 * 84) - 1); //84 pixels per second move speed felt pretty close to arcade
 
     TIMSK0 |= _BV(OCIE0A);  /* Enable timer interrupt */
     sei();
@@ -1358,5 +1382,6 @@ Bb^f_e b/2fe2 cc'g=e c'/2ge2|Bb^f_e b/2f2e2 e/2=e/2=f f/2^f/2g g/2_a/2=ab2|
 ISR( TIMER0_COMPA_vect )
 {
     scan_switches();
+    speedTimer++;
     sei();
 }
