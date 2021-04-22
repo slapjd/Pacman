@@ -947,8 +947,8 @@ jumpout:
     }
 
     /**
-     * Minor changes that should be done every frame, not tied to the
-     * 80hz timer
+     * Minor changes that should be done every actual frame,
+     * not tied to the 80hz timer
      */
     void UpdateLogicForDrawing(){
         Sprite* pacman = _sprites + PACMAN;
