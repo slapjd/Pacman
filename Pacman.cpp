@@ -970,6 +970,23 @@ jumpout:
     }
 
     /**
+     * This needed to be done a few times so it has been functioned
+     */
+    int detectCollision(int x, int y, int rayX, int rayY, byte direction) {
+        //-- resolve direction into new coordinates. Set 'ray tracing' variables for collision detection
+		switch (direction) {
+			case MLeft:     x -= 1; rayX -=5; break;
+			case MRight:    x += 1; rayX += 4; break;
+			case MUp:       y -= 1; rayY -=5; break;
+			case MDown:     y += 1; rayY += 4; break;
+		}
+
+        byte tile = GetTile((rayX + 4) >> 3,(rayY + 4) >> 3);
+		//-- make sure not colliding with walls:
+		return (!(tile == 0 || tile == DOT || tile == PILL || tile == PENGATE ));
+    }
+
+    /**
      * Move the pacman and resolve collisions
      */
     void PacmanControl() {
@@ -1005,9 +1022,12 @@ jumpout:
         if(get_switch_press(_BV(SWN))) pacman->userIntendedDir = MUp;
         if(get_switch_press(_BV(SWS))) pacman->userIntendedDir = MDown;
 
-
+        byte oldDir = pacman->dir;
         if ((x & 0x7) == 0 && (y & 0x7) == 0) {   // cell aligned
-            pacman->dir = pacman->userIntendedDir;
+            //only change direction if there's no walls
+            if (!detectCollision(x, y, rayX, rayY, pacman->userIntendedDir)) {
+                pacman->dir = pacman->userIntendedDir;
+            }
             pacman->lastCellAlignedX = x;
             pacman->lastCellAlignedY = y;
         }
@@ -1040,8 +1060,6 @@ jumpout:
 		//-- make sure pac man can't move through walls
 		//-- get the future tile, given the current direction is should be heading
 		byte tile = GetTile((rayX + 4) >> 3,(rayY + 4) >> 3);
-        _score = (rayY + 4) >> 3;
-        Score(0);
 		//-- make sure not colliding with walls:
 		if (!(tile == 0 || tile == DOT || tile == PILL || tile == PENGATE )) {
 			//-- this would be a collision, return x and y back to the last know cell aligned state
@@ -1281,6 +1299,7 @@ K:G
 Bb^f_e b/2fe2 cc'g=e c'/2ge2|Bb^f_e b/2f2e2 e/2=e/2=f f/2^f/2g g/2_a/2=ab2|
 */
     if(abc_load_file("music.abc")==FR_OK){
+        set_tempo(384);
         abc_play();
     }else{
         // NOTHING
