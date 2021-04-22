@@ -201,7 +201,7 @@ const byte _pacVAnim[] = { 4,3,1,3 };
 /* ======================== */
 byte pacManLives = 3;
 
-short abs(int val) {
+int abs(int val) {
     if (val < 0) return -val;
     return val;
 }
@@ -972,13 +972,18 @@ jumpout:
     /**
      * This needed to be done a few times so it has been functioned
      */
-    int detectCollision(int x, int y, int rayX, int rayY, byte direction) {
+    int detectCollision(int x, int y, byte direction) {
         //-- resolve direction into new coordinates. Set 'ray tracing' variables for collision detection
-		switch (direction) {
-			case MLeft:     x -= 1; rayX -=5; break;
-			case MRight:    x += 1; rayX += 4; break;
-			case MUp:       y -= 1; rayY -=5; break;
-			case MDown:     y += 1; rayY += 4; break;
+		int rayX = x;
+        int rayY = y;
+        //Position seems to be based on the bottom-right most centre
+        //of a tile. Because 8x8 tiles have no real centre, the rays
+        //get skewed depending on direction.
+        switch (direction) {
+			case MLeft:     rayX -= 5; break;
+			case MRight:    rayX += 4; break;
+			case MUp:       rayY -= 5; break;
+			case MDown:     rayY += 4; break;
 		}
 
         byte tile = GetTile((rayX + 4) >> 3,(rayY + 4) >> 3);
@@ -993,10 +998,10 @@ jumpout:
     	Sprite* pacman = _sprites + PACMAN;
 
 		//  Calculate speed
-    	pacman->speed += GetSpeed(pacman);
-		if (pacman->speed < 100)
+    	/*pacman->speed += GetSpeed(pacman);
+		if (pacman->speed < 50)
 			return;
-		pacman->speed -= 100;
+		pacman->speed -= 10;*/
 
 		pacman->lastx = pacman->_x;
 		pacman->lasty = pacman->_y;
@@ -1004,9 +1009,71 @@ jumpout:
 
 		int x = pacman->_x;
 		int y = pacman->_y;
-		int rayX = x;
-		int rayY = y;
 
+        //Scan for new direction
+        if(get_switch_press(_BV(SWE))) pacman->userIntendedDir = MRight;
+        if(get_switch_press(_BV(SWW))) pacman->userIntendedDir = MLeft;
+        if(get_switch_press(_BV(SWN))) pacman->userIntendedDir = MUp;
+        if(get_switch_press(_BV(SWS))) pacman->userIntendedDir = MDown;
+
+        //displacement to move by
+        int dx = 1;
+        int dy = 1;
+
+        //Intended Direction has changed, attempt turn (with cornering)
+        if (pacman->userIntendedDir != pacman->dir) {
+            //find centre
+            int oldX = x;
+            int oldY = y;
+
+            x = pacman->cx * 8;
+            y = pacman->cy * 8;
+
+            //do collision shit here
+            if (detectCollision(x, y, pacman->userIntendedDir)) {
+                //turn invalid, reset our stuff and set displacement to 1
+                x = oldX;
+                y = oldY;
+                dx = 1;
+                dy = 1;
+            } else {
+                /*switch (pacman->userIntendedDir) {
+                    case MLeft:     _score = y; break;
+                    case MRight:    _score = y; break;
+                    case MUp:       _score = x; break;
+                    case MDown:     _score = x; break;
+                }
+                Score(0);*/
+                //turn valid, set distances and direction and move on
+                dx = abs(oldX - x);
+                dy = abs(oldY - y);
+
+                pacman->dir = pacman->userIntendedDir;
+            }
+        }
+
+        //we're ready to move now
+        if ((x & 0x7) == 0 && (y & 0x7) == 0) {   // cell aligned
+            pacman->lastCellAlignedX = x;
+            pacman->lastCellAlignedY = y;
+        }
+
+        if (detectCollision(x, y, pacman->dir)) {
+            x = pacman->lastCellAlignedX;
+            y = pacman->lastCellAlignedY;
+            dx = 0;
+            dy = 0;
+        }    
+
+        //TODO: speed calculations
+        switch (pacman->dir) {
+            case MLeft:     x -= dy; break;
+            case MRight:    x += dy; break;
+            case MUp:       y -= dx; break;
+            case MDown:     y += dx; break;
+        }
+
+            
 
         /* =========== CODE SNIPPET 1: user control ========== */
         /**
@@ -1017,29 +1084,11 @@ jumpout:
          */
         //-- pacman is controlled by the IO board
         // Updated for LaFortuna - [OJM]
-        if(get_switch_press(_BV(SWE))) pacman->userIntendedDir = MRight;
-        if(get_switch_press(_BV(SWW))) pacman->userIntendedDir = MLeft;
-        if(get_switch_press(_BV(SWN))) pacman->userIntendedDir = MUp;
-        if(get_switch_press(_BV(SWS))) pacman->userIntendedDir = MDown;
-
-        byte oldDir = pacman->dir;
-        if ((x & 0x7) == 0 && (y & 0x7) == 0) {   // cell aligned
-            //only change direction if there's no walls
-            if (!detectCollision(x, y, rayX, rayY, pacman->userIntendedDir)) {
-                pacman->dir = pacman->userIntendedDir;
-            }
-            pacman->lastCellAlignedX = x;
-            pacman->lastCellAlignedY = y;
-        }
+        
         /* ====================================== */
 
 		//-- resolve direction into new coordinates. Set 'ray tracing' variables for collision detection
-		switch (pacman->dir) {
-			case MLeft:     x -= 1; rayX -=5; break;
-			case MRight:    x += 1; rayX += 4; break;
-			case MUp:       y -= 1; rayY -=5; break;
-			case MDown:     y += 1; rayY += 4; break;
-		}
+		
 
 		//-- wrap x because of tunnels (offset by 2 tiles to hide teleport)
 		while (x < 0-16) {
@@ -1059,13 +1108,7 @@ jumpout:
 		 */
 		//-- make sure pac man can't move through walls
 		//-- get the future tile, given the current direction is should be heading
-		byte tile = GetTile((rayX + 4) >> 3,(rayY + 4) >> 3);
 		//-- make sure not colliding with walls:
-		if (!(tile == 0 || tile == DOT || tile == PILL || tile == PENGATE )) {
-			//-- this would be a collision, return x and y back to the last know cell aligned state
-			x = pacman->lastCellAlignedX;
-			y = pacman->lastCellAlignedY;
-		}
 
 		/* ====================================== */
 
