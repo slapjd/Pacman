@@ -199,15 +199,15 @@ const byte _pacRightAnim[] = { 2,0,2,4 };
 const byte _pacVAnim[] = { 4,3,1,3 };
 
 //Various timing counters for "60fps" and 80 pixels per second
-volatile long playerFrameTimer = 0;
-volatile long ghostFrameTimer = 0;
+//volatile long playerFrameTimer = 0;
+//volatile long ghostFrameTimer = 0;
 volatile double playerSpeedTimer = 0;
-volatile double ghostSpeedTimer = 0;
+volatile long ghostSpeedTimer = 0;
 
-void updateSpeedTimers() {
+/*void updateSpeedTimers() {
     playerSpeedTimer = 1.333333333 * playerFrameTimer;
     ghostSpeedTimer = 1.333333333 * ghostFrameTimer;
-}
+}*/
 
 /* ======================== */
 byte pacManLives = 3;
@@ -892,7 +892,7 @@ jumpout:
     }
     
     double oldPlayerSpeedTimer = 0;
-    double oldGhostSpeedTimer = 0;
+    long oldGhostSpeedTimer = 0;
 
     void MoveAll()
     {
@@ -933,11 +933,11 @@ jumpout:
 
         UpdateLogicForDrawing();
 
-        double deltaGhostTimer = ghostSpeedTimer - oldGhostSpeedTimer;
+        int deltaGhostTimer = ghostSpeedTimer - oldGhostSpeedTimer;
         oldGhostSpeedTimer += deltaGhostTimer;
         //_score = deltaGhostTimer;
         //Score(0);
-        for (double i = 0; i < deltaGhostTimer; i++) GhostAI();
+        for (int i = 0; i < deltaGhostTimer; i++) GhostAI();
         
         double deltaPlayerTimer = playerSpeedTimer - oldPlayerSpeedTimer;
         oldPlayerSpeedTimer += deltaPlayerTimer; //done to avoid accessing volatile many times
@@ -1229,8 +1229,7 @@ jumpout:
     {
         if (!GetDot(cx,cy))
             return;
-        playerFrameTimer--;
-        updateSpeedTimers();
+        playerSpeedTimer -= 1.333333333333; //roughly 1/60th of a second in 1/80ths of a second
 
         byte mask = 0x80 >> (cx & 7);
         _dotMap[(cy-3)*4 + (cx >> 3)] &= ~mask;
@@ -1353,7 +1352,7 @@ void scanswitch_init( void ) {
     | _BV(CS00);	 /* F_CPU / 1024 */ 
 
     /* 84Hz for button presses (and i hijacked it for speed calculations)*/
-    OCR0A = (uint8_t)(F_CPU / (1024 * 60) - 1); //84 pixels per second move speed felt pretty close to arcade
+    OCR0A = (uint8_t)(F_CPU / (1024 * 84) - 1); //84 pixels per second move speed felt pretty close to arcade
 
     TIMSK0 |= _BV(OCIE0A);  /* Enable timer interrupt */
     sei();
@@ -1399,8 +1398,8 @@ Bb^f_e b/2fe2 cc'g=e c'/2ge2|Bb^f_e b/2f2e2 e/2=e/2=f f/2^f/2g g/2_a/2=ab2|
 ISR( TIMER0_COMPA_vect )
 {
     scan_switches();
-    playerFrameTimer++;
-    ghostFrameTimer++;
-    updateSpeedTimers();
+    playerSpeedTimer++;
+    ghostSpeedTimer++;
+    //updateSpeedTimers();
     sei();
 }
