@@ -1029,8 +1029,8 @@ jumpout:
 		}
 
         byte tile = GetTile((rayX + 4) >> 3,(rayY + 4) >> 3);
-		//-- make sure not colliding with walls:
-		return (!(tile == 0 || tile == DOT || tile == PILL ));
+		//-- make sure not colliding with walls (and apparently ascii):
+		return (!(tile == 0 || tile == DOT || tile == PILL || tile >= 'A' && tile <= EXCM));
     }
 
     /**
